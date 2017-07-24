@@ -6,16 +6,44 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
+	"github.com/muesli/cache2go"
 	"github.com/thoj/go-ircevent"
 
 	"Gib/ircstructs"
+	"os/exec"
 )
 
 func main() {
+
+	type join struct {
+		nick    string
+		time    time.Time
+		channel string
+	}
+
+	gotemplate := `package main
+
+import (
+	"fmt"
+)
+
+func main() {
+	%s	
+}`
+
+	cache := cache2go.Cache("usercache")
+	cache.SetAddedItemCallback(func(e *cache2go.CacheItem) {
+		fmt.Println("Adding:", e.Key())
+	})
+	cache.SetAboutToDeleteItemCallback(func(e *cache2go.CacheItem) {
+		fmt.Println("Deleting:", e.Key())
+	})
 
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Print("Enter config name (e.g. freenode.json): ")
@@ -42,12 +70,35 @@ func main() {
 
 	bot.Debug = conf.Debug
 
+	bot.Password = conf.ServerPassword
+
+	bot.AddCallback("ERROR", func(e *irc.Event) {
+		fmt.Print("ERROR")
+		bot.Disconnect()
+	})
+
 	bot.AddCallback("001", func(e *irc.Event) {
-		bot.Join(conf.Autojoin)
+		if conf.Autojoin != "" {
+			bot.Join(conf.Autojoin)
+		}
+	})
+
+	bot.AddCallback("JOIN", func(e *irc.Event) {
+		if e.Nick == conf.Nick {
+			return
+		}
+		target := e.Arguments[0]
+		j := join{e.Nick, time.Now(), target}
+		cache.Add(e.Nick, 5*time.Second, &j)
 	})
 
 	bot.AddCallback("PRIVMSG", func(e *irc.Event) {
 		target := e.Arguments[0]
+
+		if strings.Split(e.Message(), " ")[0] == ".choose" {
+			choices := strings.Split(strings.Split(e.Message(), " ")[1], ",")
+			bot.Privmsgf(target, "%s: %s", e.Nick, choices[rand.Intn(len(choices))])
+		}
 
 		trigger := fmt.Sprintf(`^(?:%s)(.*?)(?:$|\s+)(.*)`, conf.Prefix)
 		re := regexp.MustCompile(trigger).FindString(e.Message())
@@ -59,8 +110,51 @@ func main() {
 				args = s[1]
 			}
 
-			fmt.Printf("%s@%s> %s %s\n", e.Nick, target, cmd, args)
+			// if cmd == "compare" {
+			// 	dmp := diffmatchpatch.New()
+			// 	diffs := dmp.DiffMain(strings.SplitN(args, " ", 2)[0], strings.SplitN(args, " ", 2)[1], false)
+			// 	bot.Privmsg(target, dmp.DiffNormalText(diffs))
+			// 	return
+			// }
+
+			if cmd == "ping" {
+				bot.Privmsg(target, "Pong!")
+				return
+			}
+
+			if e.Source == "astra!astra@xyl.be" {
+				if cmd == "go" {
+					stub := fmt.Sprintf(gotemplate, args)
+					err := ioutil.WriteFile("C:/Temp/stub.go", []byte(stub), 0644)
+					if err != nil {
+						fmt.Print(err)
+						return
+					}
+
+					r := exec.Command("go.exe", "run", "C://Temp//stub.go")
+
+					out, err := r.Output()
+					if err != nil {
+						fmt.Print(err)
+					}
+					bot.Privmsg(target, string(out))
+					return
+				}
+			}
 		}
+
+		// leave this till last
+
+		res, err := cache.Value(e.Nick)
+		if err != nil {
+			return
+		}
+
+		if time.Now().Unix() <= res.Data().(*join).time.Add(3*time.Second).Unix() {
+			cache.Delete(e.Nick)
+			bot.Kick(e.Nick, target, "Goodbye")
+		}
+
 	})
 
 	cerr := bot.Connect(conf.Server)

@@ -19,6 +19,15 @@ import (
 	"os/exec"
 )
 
+func stringInSlice(a string, list []interface{}) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
+}
+
 func main() {
 
 	type join struct {
@@ -78,6 +87,7 @@ func main() {
 	})
 
 	bot.AddCallback("001", func(e *irc.Event) {
+		bot.SendRawf("MODE %s %s", conf.Nick, conf.Modes)
 		if conf.Autojoin != "" {
 			bot.Join(conf.Autojoin)
 		}
@@ -122,7 +132,12 @@ func main() {
 				return
 			}
 
-			if e.Source == "astra!astra@xyl.be" {
+			if cmd == "source" {
+				bot.Privmsgf(target, "%s: https://bitbucket.org/nathan93b/Gib", e.Nick)
+				return
+			}
+
+			if stringInSlice(e.Source, conf.Admins) == true {
 				if cmd == "go" {
 					stub := fmt.Sprintf(gotemplate, args)
 					err := ioutil.WriteFile("C:/Temp/stub.go", []byte(stub), 0644)
@@ -145,15 +160,15 @@ func main() {
 
 		// leave this till last
 
-		res, err := cache.Value(e.Nick)
-		if err != nil {
-			return
-		}
+		// res, err := cache.Value(e.Nick)
+		// if err != nil {
+		// 	return
+		// }
 
-		if time.Now().Unix() <= res.Data().(*join).time.Add(3*time.Second).Unix() {
-			cache.Delete(e.Nick)
-			bot.Kick(e.Nick, target, "Goodbye")
-		}
+		// if time.Now().Unix() <= res.Data().(*join).time.Add(3*time.Second).Unix() {
+		// 	cache.Delete(e.Nick)
+		// 	bot.Kick(e.Nick, target, "Goodbye")
+		// }
 
 	})
 

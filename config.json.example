@@ -1,0 +1,17 @@
+{
+    "server": "irc.your.net:6697",
+    "ssl": true,
+    "nick": "Gib",
+    "gecos": "Golang IRC Bot",
+    "user": "gib",
+    "sasl": false,
+    "sasl_username": "",
+    "sasl_password": "",
+    "debug": false,
+    "prefix": ";",
+    "autojoin": "##channel1,##channel2",
+    "modes": "+x",
+    "admins": [
+        "nick!ident@host"
+    ]
+}

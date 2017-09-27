@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"database/sql"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -68,6 +69,9 @@ type Quote struct {
 
 func main() {
 
+	configFile := flag.String("config", "config.json", "Path to config file to use")
+	flag.Parse()
+
 	lastfmapi := lastfm.New("ca347092b54af2ac4cb1f71034c3dd67", "c37e37b32dbe58e2a8cd9959844b8bb6")
 
 	gotemplate := `package main
@@ -78,7 +82,7 @@ func main() {
 
 	done := make(chan struct{})
 
-	cfile, err := ioutil.ReadFile("config.json")
+	cfile, err := ioutil.ReadFile(*configFile)
 	if err != nil {
 		fmt.Println(err)
 		return

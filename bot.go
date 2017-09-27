@@ -161,7 +161,7 @@ func main() {
 		// 	return
 		// }
 
-		if strings.Split(e.Message(), " ")[0] == ";choose" && conf.Name == "subluminal" {
+		if strings.Split(e.Message(), " ")[0] == ".choose" && conf.Name == "subluminal" {
 			s := regexp.MustCompile(`,\s*`)
 			choices := s.Split(strings.SplitAfterN(e.Message(), " ", 2)[1], -1)
 			bot.Privmsgf(target, "%s: %s", e.Nick, choices[rand.Intn(len(choices))])

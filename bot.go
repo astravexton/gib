@@ -285,7 +285,12 @@ func main() {
 				if err != nil {
 					log.Print(err)
 				}
-				bot.Privmsgf(target, "%s is/was listening to: %s - %s", args, np.Tracks[0].Artist.Name, np.Tracks[0].Name)
+				if np.Tracks[0].NowPlaying == "true" {
+					bot.Privmsgf(target, "%s is listening to: %s - %s", args, np.Tracks[0].Artist.Name, np.Tracks[0].Name)
+				} else {
+					bot.Privmsgf(target, "%s was listening to: %s - %s", args, np.Tracks[0].Artist.Name, np.Tracks[0].Name)
+				}
+				return
 
 			case "ping":
 				bot.Privmsg(target, "Pong!")

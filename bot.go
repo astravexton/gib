@@ -19,11 +19,11 @@ import (
 	"golang.org/x/tools/imports"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/nanobox-io/scribble"
+	"github.com/nanobox-io/golang-scribble"
 	"github.com/shkh/lastfm-go/lastfm"
 	"github.com/thoj/go-ircevent"
 
-	"Gib/ircstructs"
+	"bitbucket.org/nathan93b/gib/ircstructs"
 )
 
 func percentCaps(s string) int {

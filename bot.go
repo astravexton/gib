@@ -9,13 +9,17 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/dustin/go-humanize"
 
 	"golang.org/x/tools/imports"
 
@@ -51,20 +55,65 @@ func stringInSlice(a string, list []string) bool {
 	return false
 }
 
-// TimeData holds user timezone
-type TimeData struct {
-	Name     string
-	Timezone string
-}
+func youtube(query string) string {
+	hc := http.Client{}
+	req, err := http.NewRequest("GET", "https://www.googleapis.com/youtube/v3/search", nil)
 
-// Quote holds a user quote
-type Quote struct {
-	Added     int64
-	By        string
-	Quote     string
-	QuoteID   int
-	Upvotes   int
-	Downvotes int
+	q := req.URL.Query()
+	q.Add("q", query)
+	q.Add("part", "id")
+	q.Add("maxResults", "1")
+	q.Add("type", "video")
+	q.Add("key", "AIzaSyBn1mBgMwk25d-sFmcdlHI61TJTyR_nado")
+	req.URL.RawQuery = q.Encode()
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err.Error()
+	}
+
+	defer resp.Body.Close()
+
+	ytjson := &ircstructs.YT{}
+	err = json.NewDecoder(resp.Body).Decode(&ytjson)
+	if err != nil {
+		return err.Error()
+	}
+
+	if len(ytjson.Items) == 0 {
+		return "No videos found"
+	}
+
+	req, err = http.NewRequest("GET", "https://www.googleapis.com/youtube/v3/videos", nil)
+	q = req.URL.Query()
+	q.Add("part", "id,snippet,contentDetails,statistics,status,liveStreamingDetails")
+	q.Add("id", ytjson.Items[0].ID.VideoID)
+	q.Add("key", "AIzaSyBn1mBgMwk25d-sFmcdlHI61TJTyR_nado")
+	req.URL.RawQuery = q.Encode()
+
+	resp, err = hc.Do(req)
+	if err != nil {
+		return err.Error()
+	}
+
+	defer resp.Body.Close()
+
+	ytvid := &ircstructs.YTVid{}
+	err = json.NewDecoder(resp.Body).Decode(&ytvid)
+	if err != nil {
+		return err.Error()
+	}
+
+	i, _ := strconv.ParseInt(ytvid.Items[0].Statistics.ViewCount, 10, 64)
+
+	if len(ytvid.Items) == 0 {
+		return "No videos found"
+	}
+
+	return fmt.Sprintf("https://youtu.be/%s | %s | %s | %s views",
+		ytvid.Items[0].ID, ytvid.Items[0].Snippet.Title,
+		ytvid.Items[0].Snippet.ChannelTitle,
+		humanize.Comma(i))
 }
 
 func main() {
@@ -179,6 +228,9 @@ func main() {
 			}
 
 			switch cmd {
+			case "yt", "youtube", "vid":
+				bot.Privmsg(target, youtube(args))
+				return
 			case "quoteadd", "addquote":
 				if args == "" {
 					bot.Privmsgf(target, "%s: quoteadd <quote>", e.Nick)
@@ -236,7 +288,7 @@ func main() {
 					return
 				}
 
-				t := TimeData{Name: e.Nick, Timezone: args}
+				t := ircstructs.TimeData{Name: e.Nick, Timezone: args}
 				if err := db.Write("timezones", e.Nick, t); err != nil {
 					bot.Privmsgf(target, "%s: error in adding timezone: %s", e.Nick, err.Error())
 					return
@@ -249,7 +301,7 @@ func main() {
 					return
 				}
 
-				t := TimeData{}
+				t := ircstructs.TimeData{}
 				if err := db.Read("timezones", args, &t); err != nil {
 					bot.Privmsgf(target, "%s: %s has not set their timezone.", e.Nick, args)
 					return
@@ -286,14 +338,28 @@ func main() {
 			// 	fmt.Println("appstats")
 
 			case "np":
-				np, err := lastfmapi.User.GetRecentTracks(lastfm.P{"user": args})
+				np := lastfm.UserGetRecentTracks{}
+				if args != "" {
+					u := ircstructs.LastFM{Name: args}
+					if err := db.Write("lastfm", e.Nick, u); err != nil {
+						bot.Privmsgf(target, err.Error())
+					}
+					np, err = lastfmapi.User.GetRecentTracks(lastfm.P{"user": args})
+				} else {
+					u := ircstructs.LastFM{}
+					if err := db.Read("lastfm", e.Nick, &u); err != nil {
+						bot.Privmsgf(target, "%s: to set your last.fm type `np <username>`", e.Nick)
+						return
+					}
+					np, err = lastfmapi.User.GetRecentTracks(lastfm.P{"user": u.Name})
+				}
 				if err != nil {
 					log.Print(err)
 				}
 				if np.Tracks[0].NowPlaying == "true" {
-					bot.Privmsgf(target, "%s is listening to: %s - %s", args, np.Tracks[0].Artist.Name, np.Tracks[0].Name)
+					bot.Privmsgf(target, "%s is listening to: %s - %s", np.User, np.Tracks[0].Artist.Name, np.Tracks[0].Name)
 				} else {
-					bot.Privmsgf(target, "%s was listening to: %s - %s", args, np.Tracks[0].Artist.Name, np.Tracks[0].Name)
+					bot.Privmsgf(target, "%s was listening to: %s - %s", np.User, np.Tracks[0].Artist.Name, np.Tracks[0].Name)
 				}
 				return
 

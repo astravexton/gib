@@ -29,3 +29,48 @@ type Config struct {
 type Servers struct {
 	Server []Config `json:"servers"`
 }
+
+// TimeData holds user timezone
+type TimeData struct {
+	Name     string
+	Timezone string
+}
+
+// LastFM holds lastfm user
+type LastFM struct {
+	Name string
+}
+
+// Quote holds a user quote
+type Quote struct {
+	Added     int64
+	By        string
+	Quote     string
+	QuoteID   int
+	Upvotes   int
+	Downvotes int
+}
+
+// YT holds youtube id
+type YT struct {
+	Items []struct {
+		ID struct {
+			VideoID string `json:"videoId"`
+		} `json:"id"`
+	} `json:"Items"`
+}
+
+// YTVid holds video info
+type YTVid struct {
+	Items []struct {
+		ID      string `json:"id"`
+		Snippet struct {
+			Title        string `json:"title"`
+			ChannelTitle string `json:"channelTitle"`
+		} `json:"snippet"`
+		Statistics struct {
+			ViewCount string `json:"viewCount"`
+		} `json:"statistics"`
+	} `json:"items"`
+	Kind string `json:"kind"`
+}

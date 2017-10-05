@@ -55,43 +55,46 @@ func stringInSlice(a string, list []string) bool {
 	return false
 }
 
-func youtube(query string) string {
+func youtube(query string, v string) string {
 	hc := http.Client{}
-	req, err := http.NewRequest("GET", "https://www.googleapis.com/youtube/v3/search", nil)
+	if query != "" {
+		req, err := http.NewRequest("GET", "https://www.googleapis.com/youtube/v3/search", nil)
 
+		q := req.URL.Query()
+		q.Add("q", query)
+		q.Add("part", "id")
+		q.Add("maxResults", "1")
+		q.Add("type", "video")
+		q.Add("key", "AIzaSyBn1mBgMwk25d-sFmcdlHI61TJTyR_nado")
+		req.URL.RawQuery = q.Encode()
+
+		resp, err := hc.Do(req)
+		if err != nil {
+			return err.Error()
+		}
+
+		defer resp.Body.Close()
+
+		ytjson := &ircstructs.YT{}
+		err = json.NewDecoder(resp.Body).Decode(&ytjson)
+		if err != nil {
+			return err.Error()
+		}
+
+		if len(ytjson.Items) == 0 {
+			return "No videos found"
+		}
+		v = ytjson.Items[0].ID.VideoID
+	}
+
+	req, err := http.NewRequest("GET", "https://www.googleapis.com/youtube/v3/videos", nil)
 	q := req.URL.Query()
-	q.Add("q", query)
-	q.Add("part", "id")
-	q.Add("maxResults", "1")
-	q.Add("type", "video")
+	q.Add("part", "id,snippet,contentDetails,statistics,status,liveStreamingDetails")
+	q.Add("id", v)
 	q.Add("key", "AIzaSyBn1mBgMwk25d-sFmcdlHI61TJTyR_nado")
 	req.URL.RawQuery = q.Encode()
 
 	resp, err := hc.Do(req)
-	if err != nil {
-		return err.Error()
-	}
-
-	defer resp.Body.Close()
-
-	ytjson := &ircstructs.YT{}
-	err = json.NewDecoder(resp.Body).Decode(&ytjson)
-	if err != nil {
-		return err.Error()
-	}
-
-	if len(ytjson.Items) == 0 {
-		return "No videos found"
-	}
-
-	req, err = http.NewRequest("GET", "https://www.googleapis.com/youtube/v3/videos", nil)
-	q = req.URL.Query()
-	q.Add("part", "id,snippet,contentDetails,statistics,status,liveStreamingDetails")
-	q.Add("id", ytjson.Items[0].ID.VideoID)
-	q.Add("key", "AIzaSyBn1mBgMwk25d-sFmcdlHI61TJTyR_nado")
-	req.URL.RawQuery = q.Encode()
-
-	resp, err = hc.Do(req)
 	if err != nil {
 		return err.Error()
 	}
@@ -210,6 +213,15 @@ func main() {
 		// 	return
 		// }
 
+		if conf.Name == "operanet" {
+
+			yt := regexp.MustCompile(`http(?:s?):\/\/(?:www\.)?youtu(?:be\.com\/watch\?v=|\.be\/)([\w\-\_]*)(&(amp;)?‌​[\w\?‌​=]*)?`)
+			ytlink := yt.FindStringSubmatch(e.Message())
+			if len(ytlink) == 4 && ytlink[1] != "" {
+				bot.Privmsg(target, youtube("", ytlink[1]))
+			}
+		}
+
 		if strings.Split(e.Message(), " ")[0] == ".choose" && conf.Name == "subluminal" {
 			s := regexp.MustCompile(`,\s*`)
 			choices := s.Split(strings.SplitAfterN(e.Message(), " ", 2)[1], -1)
@@ -229,7 +241,7 @@ func main() {
 
 			switch cmd {
 			case "yt", "youtube", "vid":
-				bot.Privmsg(target, youtube(args))
+				bot.Privmsg(target, youtube(args, ""))
 				return
 			case "quoteadd", "addquote":
 				if args == "" {

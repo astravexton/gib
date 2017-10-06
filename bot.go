@@ -217,7 +217,7 @@ func main() {
 		// 	return
 		// }
 
-		if conf.Name != "" {
+		if conf.Name == "operanet" {
 
 			yt := regexp.MustCompile(`http(?:s?):\/\/(?:www\.)?youtu(?:be\.com\/watch\?v=|\.be\/)([\w\-\_]*)(&(amp;)?‌​[\w\?‌​=]*)?`)
 			ytlink := yt.FindStringSubmatch(e.Message())

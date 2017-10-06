@@ -65,7 +65,7 @@ func youtube(query string, v string) string {
 		q.Add("part", "id")
 		q.Add("maxResults", "1")
 		q.Add("type", "video")
-		q.Add("key", "AIzaSyBn1mBgMwk25d-sFmcdlHI61TJTyR_nado")
+		q.Add("key", "")
 		req.URL.RawQuery = q.Encode()
 
 		resp, err := hc.Do(req)
@@ -91,7 +91,7 @@ func youtube(query string, v string) string {
 	q := req.URL.Query()
 	q.Add("part", "id,snippet,contentDetails,statistics,status,liveStreamingDetails")
 	q.Add("id", v)
-	q.Add("key", "AIzaSyBn1mBgMwk25d-sFmcdlHI61TJTyR_nado")
+	q.Add("key", "")
 	req.URL.RawQuery = q.Encode()
 
 	resp, err := hc.Do(req)
@@ -113,10 +113,14 @@ func youtube(query string, v string) string {
 		return "No videos found"
 	}
 
-	return fmt.Sprintf("https://youtu.be/%s | %s | %s | %s views",
-		ytvid.Items[0].ID, ytvid.Items[0].Snippet.Title,
-		ytvid.Items[0].Snippet.ChannelTitle,
-		humanize.Comma(i))
+	o := fmt.Sprintf("%s | %s | %s views", ytvid.Items[0].Snippet.Title,
+		ytvid.Items[0].Snippet.ChannelTitle, humanize.Comma(i))
+
+	if query != "" {
+		o = fmt.Sprintf("https://youtu.be/%s | %s", ytvid.Items[0].ID, o)
+	}
+
+	return o
 }
 
 func main() {
@@ -124,7 +128,7 @@ func main() {
 	configFile := flag.String("config", "config.json", "Path to config file to use")
 	flag.Parse()
 
-	lastfmapi := lastfm.New("ca347092b54af2ac4cb1f71034c3dd67", "c37e37b32dbe58e2a8cd9959844b8bb6")
+	lastfmapi := lastfm.New("", "")
 
 	gotemplate := `package main
 
@@ -213,7 +217,7 @@ func main() {
 		// 	return
 		// }
 
-		if conf.Name == "operanet" {
+		if conf.Name != "" {
 
 			yt := regexp.MustCompile(`http(?:s?):\/\/(?:www\.)?youtu(?:be\.com\/watch\?v=|\.be\/)([\w\-\_]*)(&(amp;)?‌​[\w\?‌​=]*)?`)
 			ytlink := yt.FindStringSubmatch(e.Message())

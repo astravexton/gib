@@ -23,6 +23,14 @@ type Config struct {
 	ServerPassword string   `json:"server_password,omitempty"`
 	Modes          string   `json:"modes,omitempty"`
 	Admins         []string `json:"admins,omitempty"`
+	APIKeys        struct {
+		Youtube string `json:"youtube,omitempty"`
+		Weather string `json:"weather,omitempty"`
+		LastFM  struct {
+			Key    string `json:"key,key"`
+			Secret string `json:"secret,omitempty"`
+		} `json:"lastfm,omitempty"`
+	} `json:"apikeys,omitempty"`
 }
 
 // Servers holds the array of servers

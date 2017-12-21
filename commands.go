@@ -3,9 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,6 +25,13 @@ import (
 	"github.com/shkh/lastfm-go/lastfm"
 	irc "github.com/thoj/go-ircevent"
 )
+
+type Tweet struct {
+	URL        string `json":url"`
+	AuthorName string `json":author_name"`
+	AuthorURL  string `json":author_url"`
+	HTML       string `json":html"`
+}
 
 func stripColors(s string) string {
 	r := regexp.MustCompile(`\x03(\d{1,2}(,\d{1,2})?)?`)
@@ -125,6 +134,32 @@ func getNowPlaying(user string, b *Bot) (lastfm.UserGetRecentTracks, error) {
 	return b.LastFMAPI.User.GetRecentTracks(lastfm.P{"user": user})
 }
 
+func getTweet(tweet string) string {
+	hc := http.Client{}
+	u, _ := url.Parse("https://publish.twitter.com/oembed?url=")
+	q := u.Query()
+	q.Set("url", tweet)
+	u.RawQuery = q.Encode()
+	req, reqerr := http.NewRequest("GET", u.String(), nil)
+	if reqerr != nil {
+		return reqerr.Error()
+	}
+	resp, doerr := hc.Do(req)
+	if doerr != nil {
+		return doerr.Error()
+	}
+	defer resp.Body.Close()
+
+	tweetjson := &Tweet{}
+	err := json.NewDecoder(resp.Body).Decode(&tweetjson)
+	if err != nil {
+		return err.Error()
+	}
+	re := regexp.MustCompile("<[^>]*>")
+	stripSpaces := regexp.MustCompile(`\s+`)
+	return strings.Trim(html.UnescapeString(stripSpaces.ReplaceAllString(re.ReplaceAllString(tweetjson.HTML, " "), " ")), " ")
+}
+
 func (b *Bot) addPrivmsg() {
 
 	gotemplate := `package main
@@ -140,6 +175,12 @@ func (b *Bot) addPrivmsg() {
 		// 	bot.Kick(e.Nick, target, "Goodbye")
 		// 	return
 		// }
+
+		tweetregex := regexp.MustCompile(`(https?):\/\/(twitter.com)\/(.*)\/status\/(\d+)`)
+		tweet := tweetregex.FindString(e.Message())
+		if tweet != "" {
+			b.Connection.Privmsg(target, getTweet(tweet))
+		}
 
 		if b.Config.Name == "operanet" {
 
@@ -167,12 +208,15 @@ func (b *Bot) addPrivmsg() {
 					o = fmt.Sprintf("%s %s (%d)", o, k, v)
 				}
 				b.Connection.Privmsgf(target, "%s:%s", e.Nick, o)
+				b.ChooseResult = make(map[string]int)
 			}()
 			return
 		}
 
 		for k := range b.ChooseResult {
-			if regexp.MustCompile(fmt.Sprintf(".*: %s", k)).MatchString(regexp.MustCompile(`[^:\w\s]`).ReplaceAllString(e.Message(), "")) == true {
+			// if regexp.MustCompile(fmt.Sprintf(".*: %s", k)).MatchString(regexp.MustCompile(`[^:\w\s]`).ReplaceAllString(e.Message(), "")) == true {
+			// if regexp.MustCompile(fmt.Sprintf(".*: %s", k)).MatchString(e.Message()) == true {
+			if strings.HasSuffix(e.Message(), k) == true {
 				b.ChooseResult[k]++
 			}
 		}
@@ -190,11 +234,11 @@ func (b *Bot) addPrivmsg() {
 			}
 
 			switch cmd {
-			case "yt", "youtube", "vid":
-				if args != "" {
-					b.Connection.Privmsg(target, youtube(args, "", b.Config.APIKeys.Youtube))
-				}
-				return
+			// case "yt", "youtube", "vid":
+			// 	if args != "" {
+			// 		b.Connection.Privmsg(target, youtube(args, "", b.Config.APIKeys.Youtube))
+			// 	}
+			// 	return
 			case "quoteadd", "addquote":
 				if args == "" {
 					b.Connection.Privmsgf(target, "%s: quoteadd <quote>", e.Nick)

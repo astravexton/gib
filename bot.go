@@ -11,7 +11,7 @@ import (
 	"math/rand"
 	"time"
 
-	"git.zyrio.network/astra/wolframalpha"
+	"github.com/nathan0/wolframalpha"
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/dghubble/oauth1"
 	_ "github.com/mattn/go-sqlite3"

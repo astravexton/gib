@@ -11,30 +11,33 @@ import (
 	"math/rand"
 	"time"
 
+	"git.zyrio.network/astra/wolframalpha"
+	"github.com/dghubble/go-twitter/twitter"
+	"github.com/dghubble/oauth1"
+	_ "github.com/mattn/go-sqlite3"
 	scribble "github.com/nanobox-io/golang-scribble"
 	"github.com/shkh/lastfm-go/lastfm"
-
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/thoj/go-ircevent"
-
-	"bitbucket.org/nathan93b/gib/ircstructs"
 )
 
+// Bot holds bot stuffs
 type Bot struct {
-	Connection   *irc.Connection
-	Config       ircstructs.Config
-	QuoteDB      *sql.DB
-	LastFMDB     *scribble.Driver
-	LastFMAPI    *lastfm.Api
-	ChooseResult map[string]int
+	Connection    *irc.Connection
+	Config        Config
+	QuoteDB       *sql.DB
+	LastFMDB      *scribble.Driver
+	LastFMAPI     *lastfm.Api
+	ChooseResult  map[string]int
+	TwitterClient *twitter.Client
+	WolframAlpha  *wolframalpha.WolframProvider
 }
 
 func main() {
 
-	var bot Bot
-
 	configFile := flag.String("config", "config.json", "Path to config file to use")
 	flag.Parse()
+
+	var bot Bot
 
 	done := make(chan struct{})
 
@@ -50,25 +53,19 @@ func main() {
 		return
 	}
 
-	bot.LastFMAPI = lastfm.New(bot.Config.APIKeys.LastFM.Key, bot.Config.APIKeys.LastFM.Secret)
+	config := oauth1.NewConfig(bot.Config.APIKeys.Twitter.ConsumerKey, bot.Config.APIKeys.Twitter.ConsumerSecret)
+	token := oauth1.NewToken(bot.Config.APIKeys.Twitter.AccessKey, bot.Config.APIKeys.Twitter.AccessToken)
+	httpClient := config.Client(oauth1.NoContext, token)
+	bot.TwitterClient = twitter.NewClient(httpClient)
 
+	bot.WolframAlpha = wolframalpha.NewWolframProvider()
+	bot.WolframAlpha.SetApiKey(bot.Config.APIKeys.WolframAlpha)
+
+	bot.LastFMAPI = lastfm.New(bot.Config.APIKeys.LastFM.Key, bot.Config.APIKeys.LastFM.Secret)
 	bot.LastFMDB, _ = scribble.New(fmt.Sprintf("data/%s/", bot.Config.Name), nil)
 
 	bot.QuoteDB, _ = sql.Open("sqlite3", fmt.Sprintf("data/%s/quotes.db", bot.Config.Name))
 	defer bot.QuoteDB.Close()
-
-	// appingdb, err := sql.Open("sqlite3", fmt.Sprintf("data/%s/apping.db", bot.Config.Name))
-	// if err != nil {
-	// 	log.Panic(err)
-	// }
-	// defer appingdb.Close()
-
-	// sqlStmt := `create table if not exists fappers (id integer not null primary key, nick text);
-	// create table if not exists faps (id integer not null primary key, fapperid integer, starttime timedaye, endtime timedate);`
-	// _, err = appingdb.Exec(sqlStmt)
-	// if err != nil {
-	// 	log.Panic(err)
-	// }
 
 	_, err = bot.QuoteDB.Exec("create table if not exists quotes (id integer not null primary key, chan text, quote text, addedby string, time datetime);")
 	if err != nil {
@@ -106,4 +103,51 @@ func main() {
 
 func init() {
 	rand.Seed(time.Now().UTC().UnixNano())
+}
+
+func diff(a, b time.Time) (year, month, day, hour, min, sec int) {
+	if a.Location() != b.Location() {
+		b = b.In(a.Location())
+	}
+	if a.After(b) {
+		a, b = b, a
+	}
+	y1, M1, d1 := a.Date()
+	y2, M2, d2 := b.Date()
+
+	h1, m1, s1 := a.Clock()
+	h2, m2, s2 := b.Clock()
+
+	year = int(y2 - y1)
+	month = int(M2 - M1)
+	day = int(d2 - d1)
+	hour = int(h2 - h1)
+	min = int(m2 - m1)
+	sec = int(s2 - s1)
+
+	// Normalize negative values
+	if sec < 0 {
+		sec += 60
+		min--
+	}
+	if min < 0 {
+		min += 60
+		hour--
+	}
+	if hour < 0 {
+		hour += 24
+		day--
+	}
+	if day < 0 {
+		// days in month:
+		t := time.Date(y1, M1, 32, 0, 0, 0, 0, time.UTC)
+		day += 32 - t.Day()
+		month--
+	}
+	if month < 0 {
+		month += 12
+		year--
+	}
+
+	return
 }
